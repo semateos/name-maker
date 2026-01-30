@@ -1,6 +1,8 @@
 import { input, select, Separator } from '@inquirer/prompts';
 import ora from 'ora';
 import chalk from 'chalk';
+import fs from 'fs';
+import path from 'path';
 import { UserInput, NameCheckResult, GeneratedName } from './types';
 import { generateNames, generateMoreNames } from './generators/ai-generator';
 import { checkTrademark, closeBrowser } from './checkers/trademark';
@@ -281,6 +283,69 @@ function displaySessionSummary(session: Session): void {
   console.log(chalk.gray(`   Names generated: ${session.generatedNames.length}`));
 }
 
+function exportResultsToCSV(session: Session, filePath: string): void {
+  const results = session.results;
+
+  if (results.length === 0) {
+    throw new Error('No results to export');
+  }
+
+  // CSV header
+  const headers = [
+    'Name',
+    'Trademark Status',
+    'Trademark Details',
+    'iOS App Status',
+    'iOS App Name',
+    'iOS App URL',
+    'Google Play Status',
+    'Google Play Name',
+    'Google Play URL',
+    'Domains Available',
+    'Domains Taken'
+  ];
+
+  // Helper to escape CSV values
+  const escapeCSV = (value: string): string => {
+    if (value.includes(',') || value.includes('"') || value.includes('\n')) {
+      return `"${value.replace(/"/g, '""')}"`;
+    }
+    return value;
+  };
+
+  // Build CSV rows
+  const rows = results.map(result => {
+    const availableDomains = result.domains
+      .filter(d => d.available)
+      .map(d => d.domain)
+      .join('; ');
+    const takenDomains = result.domains
+      .filter(d => !d.available)
+      .map(d => d.domain)
+      .join('; ');
+
+    return [
+      result.name,
+      result.trademark.status,
+      result.trademark.details || '',
+      result.iosAppStore.status,
+      result.iosAppStore.existingApp || '',
+      result.iosAppStore.storeUrl || '',
+      result.googlePlayStore.status,
+      result.googlePlayStore.existingApp || '',
+      result.googlePlayStore.storeUrl || '',
+      availableDomains,
+      takenDomains
+    ].map(escapeCSV).join(',');
+  });
+
+  // Combine header and rows
+  const csv = [headers.join(','), ...rows].join('\n');
+
+  // Write to file
+  fs.writeFileSync(filePath, csv, 'utf-8');
+}
+
 async function interactiveLoop(session: Session): Promise<void> {
   while (true) {
     console.log(chalk.gray('\n' + '─'.repeat(50)));
@@ -293,6 +358,7 @@ async function interactiveLoop(session: Session): Promise<void> {
         { name: '🔍 Check a specific name', value: 'check' },
         { name: '📋 Show all results', value: 'show' },
         { name: '🏆 Show best candidates', value: 'best' },
+        { name: '💾 Export results to CSV', value: 'export' },
         { name: '📝 Show session info', value: 'info' },
         { name: '👋 Exit', value: 'exit' }
       ]
@@ -356,6 +422,29 @@ async function interactiveLoop(session: Session): Promise<void> {
           console.log(chalk.yellow('\nNo results to analyze yet.'));
         } else {
           displaySummary(session.results);
+        }
+        break;
+      }
+
+      case 'export': {
+        if (session.results.length === 0) {
+          console.log(chalk.yellow('\nNo results to export yet.'));
+        } else {
+          const defaultFilename = `name-maker-${session.name.toLowerCase().replace(/\s+/g, '-')}.csv`;
+          const filename = await input({
+            message: 'Enter filename for CSV export:',
+            default: defaultFilename
+          });
+
+          try {
+            const filePath = path.resolve(process.cwd(), filename);
+            exportResultsToCSV(session, filePath);
+            console.log(chalk.green(`\n✓ Exported ${session.results.length} results to ${filePath}`));
+          } catch (error) {
+            if (error instanceof Error) {
+              displayError(`Failed to export: ${error.message}`);
+            }
+          }
         }
         break;
       }
