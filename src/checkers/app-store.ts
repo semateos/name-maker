@@ -6,6 +6,8 @@ interface ITunesSearchResult {
   results: Array<{
     trackName: string;
     bundleId: string;
+    trackId: number;
+    trackViewUrl: string;
   }>;
 }
 
@@ -33,21 +35,22 @@ export async function checkiOSAppStore(name: string): Promise<AppStoreResult> {
     const data = JSON.parse(response) as ITunesSearchResult;
 
     if (data.resultCount > 0) {
-      // Check for exact or very similar matches
+      // Check for exact matches only
       const normalizedName = name.toLowerCase().replace(/\s+/g, '');
       const exactMatch = data.results.find(app => {
         const appName = app.trackName.toLowerCase().replace(/\s+/g, '');
-        return appName === normalizedName || appName.startsWith(normalizedName);
+        return appName === normalizedName;
       });
 
       if (exactMatch) {
         return {
           status: 'taken',
-          existingApp: exactMatch.trackName
+          existingApp: exactMatch.trackName,
+          storeUrl: exactMatch.trackViewUrl
         };
       }
 
-      // Similar apps exist but no exact match
+      // No exact match found
       return { status: 'available' };
     }
 

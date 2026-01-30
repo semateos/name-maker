@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import Table from 'cli-table3';
-import { NameCheckResult, TrademarkStatus, AvailabilityStatus, DomainResult } from '../types';
+import { NameCheckResult, TrademarkStatus, AvailabilityStatus, DomainResult, AppStoreResult } from '../types';
 
 // Create a clickable terminal hyperlink (OSC 8)
 function terminalLink(text: string, url: string): string {
@@ -10,6 +10,14 @@ function terminalLink(text: string, url: string): string {
 
 function getTrademarkSearchUrl(name: string): string {
   return `https://tmsearch.uspto.gov/search/search-results?searchTerm=${encodeURIComponent(name)}`;
+}
+
+function getAppStoreSearchUrl(name: string): string {
+  return `https://apps.apple.com/us/search?term=${encodeURIComponent(name)}`;
+}
+
+function getPlayStoreSearchUrl(name: string): string {
+  return `https://play.google.com/store/search?q=${encodeURIComponent(name)}&c=apps`;
 }
 
 function formatTrademarkStatus(status: TrademarkStatus, name: string): string {
@@ -33,15 +41,29 @@ function formatTrademarkStatus(status: TrademarkStatus, name: string): string {
   return terminalLink(text, url);
 }
 
-function formatAppStatus(status: AvailabilityStatus): string {
-  switch (status) {
+function formatAppStatus(result: AppStoreResult, name: string, store: 'ios' | 'play'): string {
+  let text: string;
+
+  switch (result.status) {
     case 'available':
-      return chalk.green('✓ Available');
+      text = chalk.green('✓ Available');
+      break;
     case 'taken':
-      return chalk.red('✗ Taken');
+      text = chalk.red('✗ Taken');
+      break;
     default:
-      return chalk.gray('? Unknown');
+      text = chalk.gray('? Unknown');
   }
+
+  // Make it a clickable link if taken
+  if (result.status === 'taken') {
+    // Use existing storeUrl or generate a search URL as fallback
+    const url = result.storeUrl ||
+      (store === 'ios' ? getAppStoreSearchUrl(name) : getPlayStoreSearchUrl(name));
+    return terminalLink(text, url);
+  }
+
+  return text;
 }
 
 function formatDomains(domains: DomainResult[]): string {
@@ -85,8 +107,8 @@ export function displayResults(results: NameCheckResult[]): void {
     table.push([
       chalk.cyan.bold(result.name),
       formatTrademarkStatus(result.trademark.status, result.name),
-      formatAppStatus(result.iosAppStore.status),
-      formatAppStatus(result.googlePlayStore.status),
+      formatAppStatus(result.iosAppStore, result.name, 'ios'),
+      formatAppStatus(result.googlePlayStore, result.name, 'play'),
       formatDomains(result.domains)
     ]);
   }
@@ -125,8 +147,8 @@ export function displayResultRow(result: NameCheckResult): void {
   row.push([
     chalk.cyan.bold(result.name),
     formatTrademarkStatus(result.trademark.status, result.name),
-    formatAppStatus(result.iosAppStore.status),
-    formatAppStatus(result.googlePlayStore.status),
+    formatAppStatus(result.iosAppStore, result.name, 'ios'),
+    formatAppStatus(result.googlePlayStore, result.name, 'play'),
     formatDomains(result.domains)
   ]);
 
@@ -204,12 +226,18 @@ export function displaySingleResult(result: NameCheckResult): void {
   // iOS App Store
   const iosIcon = result.iosAppStore.status === 'available' ? chalk.green('✓') :
                   result.iosAppStore.status === 'taken' ? chalk.red('✗') : chalk.gray('?');
-  console.log(`   iOS App:      ${iosIcon} ${result.iosAppStore.status}${result.iosAppStore.existingApp ? chalk.gray(` (${result.iosAppStore.existingApp})`) : ''}`);
+  const iosText = `${iosIcon} ${result.iosAppStore.status}${result.iosAppStore.existingApp ? chalk.gray(` (${result.iosAppStore.existingApp})`) : ''}`;
+  const iosUrl = result.iosAppStore.storeUrl || (result.iosAppStore.status === 'taken' ? getAppStoreSearchUrl(result.name) : null);
+  const iosOutput = iosUrl ? terminalLink(iosText, iosUrl) : iosText;
+  console.log(`   iOS App:      ${iosOutput}`);
 
   // Google Play
   const gpIcon = result.googlePlayStore.status === 'available' ? chalk.green('✓') :
                  result.googlePlayStore.status === 'taken' ? chalk.red('✗') : chalk.gray('?');
-  console.log(`   Google Play:  ${gpIcon} ${result.googlePlayStore.status}${result.googlePlayStore.existingApp ? chalk.gray(` (${result.googlePlayStore.existingApp})`) : ''}`);
+  const gpText = `${gpIcon} ${result.googlePlayStore.status}${result.googlePlayStore.existingApp ? chalk.gray(` (${result.googlePlayStore.existingApp})`) : ''}`;
+  const gpUrl = result.googlePlayStore.storeUrl || (result.googlePlayStore.status === 'taken' ? getPlayStoreSearchUrl(result.name) : null);
+  const gpOutput = gpUrl ? terminalLink(gpText, gpUrl) : gpText;
+  console.log(`   Google Play:  ${gpOutput}`);
 
   // Domains
   console.log(`   Domains:`);

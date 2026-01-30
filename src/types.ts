@@ -38,6 +38,7 @@ export interface TrademarkResult {
 export interface AppStoreResult {
   status: AvailabilityStatus;
   existingApp?: string;
+  storeUrl?: string;
 }
 
 export interface DomainResult {

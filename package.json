@@ -26,6 +26,7 @@
     "chalk": "^4.1.2",
     "cli-table3": "^0.6.5",
     "commander": "^12.1.0",
+    "google-play-scraper": "^10.1.2",
     "open": "^11.0.0",
     "ora": "^5.4.1",
     "puppeteer": "^24.36.1",
