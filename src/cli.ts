@@ -185,8 +185,15 @@ async function generateAndCheck(
   let names: GeneratedName[];
 
   try {
-    if (feedback || session.generatedNames.length > 0) {
-      names = await generateMoreNames(session.input, session.generatedNames, feedback);
+    // Collect all names from session (generated + manually checked)
+    const allPreviousNames = [
+      ...session.generatedNames,
+      ...session.results.map(r => r.name)
+    ];
+    const uniquePreviousNames = [...new Set(allPreviousNames)];
+
+    if (feedback || uniquePreviousNames.length > 0) {
+      names = await generateMoreNames(session.input, uniquePreviousNames, feedback);
     } else {
       names = await generateNames(session.input);
     }

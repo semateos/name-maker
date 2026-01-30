@@ -41,7 +41,13 @@ export async function generateMoreNames(
   feedback?: string
 ): Promise<GeneratedName[]> {
   const prompt = buildIterativePrompt(input, previousNames, feedback);
-  return await callClaude(prompt);
+  const names = await callClaude(prompt);
+
+  // Filter out any names that were already generated in this session
+  const previousNamesLower = new Set(previousNames.map(n => n.toLowerCase()));
+  const filteredNames = names.filter(n => !previousNamesLower.has(n.name.toLowerCase()));
+
+  return filteredNames;
 }
 
 async function callClaude(prompt: string): Promise<GeneratedName[]> {
